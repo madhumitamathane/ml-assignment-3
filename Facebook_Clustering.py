@@ -1,31 +1,20 @@
-
-# coding: utf-8
-
-# In[1]:
-
-
+import sys
 import pandas as pd
-import numpy as np
-import itertools
 from sklearn.cluster import KMeans, AgglomerativeClustering
 from sklearn.mixture import GaussianMixture
 
+# consts 
+# ------------------------
 
-# In[2]:
-
-
-PATH = "./data/Facebook_metrics/dataset_Facebook.csv"
+DEFAULT_DATA_PATH = "./dataset_Facebook.csv"
 SEPARATOR = ";"
 DUMMY_COLUMNS = [
     "Type"
 ]
 
-
-# In[3]:
-
-
 # metric functions
 # --------------------------------------------
+
 def total_sum_of_squares_df(df, centroid = None):
     """ Calculates and returns the TTS of the given DataFrame """
     if centroid is None:
@@ -45,7 +34,7 @@ def total_sum_of_squares(data, centroid):
     for row in data:
         for index, value in enumerate(row):
             diff = value - centroid[index]
-            diffsq = diff ** 2
+            diffsq = diff * diff
             total += diffsq
             
     return total
@@ -58,7 +47,7 @@ def find_centroid_df(df):
 # clustering functions
 # --------------------------
 
-def get_cluster_indexes(cluster_assignments):
+def get_cluster_indexes(assignments):
     cluster_slices = {}
     
     for index, assignment in enumerate(assignments):
@@ -107,7 +96,9 @@ def clean_data(data):
     # Strip whitespaces from all string values
     # and replace "?" with None,
     # and drop all na rows
-    data = data.apply(lambda x: x.str.strip() if x.dtype == "object" else x)                .replace(["?"], [None])                .dropna()
+    data = data.apply(lambda x: x.str.strip() if x.dtype == "object" else x) \
+        .replace(["?"], [None]) \
+        .dropna()
 
     return data
 
@@ -120,57 +111,43 @@ def read_data(path):
     dataset = prepare_data(dataset)
     return dataset
 
+def main():
+    data_path = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_DATA_PATH
 
-# In[4]:
+    print("Reading data from: %s" % data_path) 
+    df = read_data(data_path)
 
-
-# Reading the dataset
-# df = pd.DataFrame({
-#    "A": [1,2,2,1],
-#    "B": [0,0,0,1]
-# })
-
-df = read_data(PATH)
-
-
-# In[7]:
-
-
-tss = total_sum_of_squares_df(df)
-print("tss for data = %s" % tss)
-
-
-# In[8]:
-
-
-models = [
-    ("KMeans", lambda k: KMeans(n_clusters=k), run_kmeans),
-    ("H-Clustering", lambda k: AgglomerativeClustering(n_clusters=k), run_hclustering),
-    ("Gaussian Mixture", lambda k: GaussianMixture(n_components=k, reg_covar=0.001), run_gaussian_mixture)
-]
-
-
-# In[10]:
-
-
-for model_name, create_model, run_model in models:
-    print("-------------------------------")
-    print(model_name)
-    print("-------------------------------")
+    print("Calculating tss...")
+    tss = total_sum_of_squares_df(df)
+    print("tss = %s" % tss)
     print("")
-    for k in range(1,11):
-        print("Calculating %s clusters..." % k)
+
+    models = [
+        ("KMeans", lambda k: KMeans(n_clusters=k), run_kmeans),
+        ("H-Clustering", lambda k: AgglomerativeClustering(n_clusters=k), run_hclustering),
+        ("Gaussian Mixture", lambda k: GaussianMixture(n_components=k, reg_covar=0.001), run_gaussian_mixture)
+    ]
+
+    for model_name, create_model, run_model in models:
+        print("-------------------------------")
+        print(model_name)
+        print("-------------------------------")
         print("")
-        model = create_model(k)
-        assignments = run_model(model, df)
-        clusters = get_clusters(df, assignments)
+        for k in range(1,11):
+            print("Calculating %s clusters..." % k)
+            print("")
+            model = create_model(k)
+            assignments = run_model(model, df)
+            clusters = get_clusters(df, assignments)
 
-        twss = 0
-        for cluster, centroid, cluster_slice in clusters:
-            cluster_tss = total_sum_of_squares_df(cluster_slice, centroid)
-            print("cluster %s | tss = %s | size = %s" % (cluster, cluster_tss, len(cluster_slice)))
-            twss += cluster_tts
+            twss = 0
+            for cluster, centroid, cluster_slice in clusters:
+                cluster_tss = total_sum_of_squares_df(cluster_slice, centroid)
+                print("cluster %s | tss = %s | size = %s" % (cluster, cluster_tss, len(cluster_slice)))
+                twss += cluster_tss
 
-        print("twss/tss = %s/%s = %s" % (twss, tss, twss / tss))
-        print("")
+            print("twss/tss = %s/%s = %s" % (twss, tss, twss / tss))
+            print("")
 
+if __name__ == "__main__":
+    main()
